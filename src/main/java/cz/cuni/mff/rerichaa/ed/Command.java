@@ -7,11 +7,10 @@ public class Command {
     public Range range;
     public Integer destinationLine;
 
-    public Command(String sCommand, Integer currLine, Integer lastLine){
+    public Command(String sCommand, int currLine, int lastLine){
         enum State {
             RANGE1,
             RANGE2,
-            ALLRANGE,
             DESTINATION,
             ARGUMENT
         }
@@ -31,21 +30,29 @@ public class Command {
                     } else if (ch == ',') {
                         if (!sb.isEmpty()){
                             rangeLower = Integer.parseInt(sb.toString());
-                        } else {
-                            range = new Range(RangeState.FULLRANGE);
+                        }
+                        else {
+                            if (lastLine > 0)
+                                range = new Range(1 , lastLine);
                         }
                         state = State.RANGE2;
                         sb = new StringBuilder();
-                    } else if (Character.isLetter(ch)){
+                    }else if (ch == '.'){
+                        sb.append(Integer.toString(currLine));
+                    } else if (ch == '$'){
+                        sb.append(Integer.toString(lastLine));
+                    } else if (ch == '+'){
+                        int nextLine = currLine +1;
+                        sb.append(Integer.toString(nextLine));
+                    }
+                    else if (Character.isLetter(ch)){
                         // only one number in range
                         if (!sb.isEmpty()){
                             rangeLower = Integer.parseInt(sb.toString());
                             range = new Range(rangeLower, rangeLower);
                         }
                         else{ // no number given
-                            if (currLine > 0){
-                                range = new Range(RangeState.DEFAULT);
-                            }
+                            range = new Range(RangeState.DEFAULT);
                         }
                         sb = new StringBuilder();
                         name = ch;
@@ -57,17 +64,18 @@ public class Command {
                     if (Character.isDigit(ch)){
                         sb.append(ch);
                     } else if (Character.isLetter(ch)){
+
                         if (!sb.isEmpty()){
                             range = new Range(rangeLower, Integer.parseInt(sb.toString()));
                             sb = new StringBuilder();
                             state = State.DESTINATION;
                         }
                         name = ch;
+                    } else if (ch == '.'){
+                        sb.append(Integer.toString(currLine));
+                    } else if (ch == '$'){
+                        sb.append(Integer.toString(lastLine));
                     }
-                    break;
-                case ALLRANGE:
-                    if (Character.isLetter(ch)) name = ch;
-                    state = State.DESTINATION;
                     break;
                 case DESTINATION:
                     if (Character.isDigit(ch)){
@@ -93,8 +101,11 @@ public class Command {
             }
 
         }
-        if (state == State.RANGE1) range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
-        else if (state == State.ARGUMENT) argument = sb.toString();
+        if (state == State.RANGE1 && !sb.isEmpty())
+            range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
+
+        else if (state == State.ARGUMENT && !sb.isEmpty())
+            argument = sb.toString();
 
     }
     public String toString(){

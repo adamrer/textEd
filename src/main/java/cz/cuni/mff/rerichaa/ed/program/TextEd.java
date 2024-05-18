@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 
-public class EdText {
+public class TextEd {
 
     static List<String> buffer = new ArrayList<>();
     static String defaultFile;
@@ -23,9 +23,9 @@ public class EdText {
             //prompt
             put('P', new CommandStructure(false,false, false, false));
             //print
-            put('p', new CommandStructure(true,false, false, false));
+            put('p', new CommandStructure( true,false, false, false));
             //read
-            put('r', new CommandStructure(false,false, false, true));
+            put('r', new CommandStructure( false,false, false, true));
             //change current line
             put(' ', new CommandStructure(true,true, false, false));
             //change lines
@@ -35,7 +35,7 @@ public class EdText {
             //number lines
             put('n', new CommandStructure(true, false, false, false));
             //write buffer to file
-            put('w', new CommandStructure(true, false, false, false));
+            put('w', new CommandStructure( true, false, false, false));
 
         }
     };
@@ -45,6 +45,7 @@ public class EdText {
         buffer.add("");
         currLine = 0;
         defaultFile = null;
+        showPrompt = false;
 
     }
     public static void main(String[] args){
@@ -62,6 +63,7 @@ public class EdText {
 
                 //if (checkStructure(command))
                 execute(command, reader);
+
                 //else System.out.println("? Invalid command");
 
                 if (showPrompt) System.out.print("* ");
@@ -80,24 +82,34 @@ public class EdText {
             case 'r':
                 readFile(command.argument, command.range);
                 break;
+            case 'e':
+                buffer  = new ArrayList<>();
+                buffer.add("");
+                readFile(command.argument, command.range);
+                break;
             case 'p':
-                if (command.range.state == RangeState.FULLRANGE && buffer.size()>1) command.range = new Range(1, buffer.size()-1);
-                else if (command.range.state == RangeState.DEFAULT) command.range = new Range(currLine, currLine);
+                if (command.range.state == RangeState.DEFAULT)
+                    command.range = new Range(currLine, currLine);
 
                 printBuffer(command.range);
                 break;
             case ' ':
-                if (command.range != null){
+                if (command.range.state == RangeState.SETRANGE){
 
                     int lineNumber = command.range.from;
-                    if (lineNumber < buffer.size()) currLine = lineNumber;
-                    else System.out.println("! Invalid address");
+                    if (lineNumber < buffer.size()){
+                        currLine = lineNumber;
+                        printBuffer(new Range(currLine, currLine));
+                    }
+
+                    else
+                        System.out.println("! Invalid address");
                 }
                 else
                     System.out.println("! Invalid command");
                 break;
             case 'P':
-                if (command.range != null){
+                if (command.range.state != RangeState.DEFAULT){
                     System.out.println("!");
                     return;
                 }
@@ -108,29 +120,25 @@ public class EdText {
                 break;
             case 'a':
                 if (command.range.state == RangeState.DEFAULT)
-                    command.range = new Range(buffer.size()-1, buffer.size()-1);
-                else
-                    System.out.println("!");
-
-                if (command.range == null) command.range = new Range(buffer.size(), buffer.size());
+                    command.range = new Range(buffer.size(), buffer.size());
                 appendLines(command.range.from, inputReader);
                 break;
             case 'd':
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(currLine, currLine);
-                else if (command.range.state == RangeState.FULLRANGE && buffer.size()>1)
-                    command.range = new Range(1, buffer.size()-1);
 
                 if (command.range.to >= command.range.from) {
                     buffer.subList(command.range.from, command.range.to + 1).clear();
                 }
+                if (command.range.to > buffer.size() - 1)
+                    currLine = buffer.size()-1;
+                else
+                    currLine = command.range.to;
                 break;
             case 'n':
                 if (command.range.state == RangeState.DEFAULT && buffer.size() > 1)
                     command.range = new Range(1, buffer.size()-1);
-                else {
-                    System.out.println("!");
-                }
+
 
                 for (int i = command.range.from; i <= command.range.to; i++){
                     System.out.println(i + "\t" + buffer.get(i));
@@ -143,25 +151,17 @@ public class EdText {
                     writeBuffer(command.argument, command.range);
                 else
                     System.out.println("! Default file is not set");
-
-
                 break;
         }
 
     }
-    private static void setRange(Command command, Range defaultRange, Range fullRange){
-        switch (command.range.state){
-            case DEFAULT -> command.range = fullRange;
-            case FULLRANGE -> command.range = defaultRange;
 
-        }
-    }
     private static void appendLines(int from, BufferedReader inputReader){
         int index = from;
         try{
             String line = inputReader.readLine();
             while(!line.equals(".")){
-                buffer.add(line);
+                buffer.add(index, line);
                 index++;
                 line = inputReader.readLine();
             }
@@ -174,11 +174,10 @@ public class EdText {
     private static void readFile(String filePath, Range range){
         try(BufferedReader reader = new BufferedReader(new FileReader(filePath))){
 
-
             String line = reader.readLine();
             int charSum = 0;
 
-            if (range == null){
+            if (range.state == RangeState.DEFAULT){
                 while(line != null){
                     buffer.add(line);
                     charSum += line.length();
@@ -209,19 +208,7 @@ public class EdText {
         if (range.to >= range.from) {
             buffer.subList(range.from, range.to + 1).clear();
         }
-        int index = range.from;
-        try{
-            String line = inputReader.readLine();
-            while(!line.equals(".")){
-                buffer.add(index, line);
-                index++;
-                line = inputReader.readLine();
-            }
-        }catch(java.io.IOException e){
-            System.out.println("! Error reading input");
-        }
-
-        currLine = index - 1;
+        appendLines(range.from, inputReader);
 
     }
     private static void printBuffer(Range range){
@@ -239,16 +226,15 @@ public class EdText {
         }
 
         try(BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, false))){
-            if (range == null){
-                for (String line : buffer) {
-                    writer.write(line + "\n");
-                }
+            if (range.state == RangeState.DEFAULT){
+                range = new Range(1, buffer.size()-1);
             }
-            else{
-                for (int i = range.from; i <= range.to; i++) {
-                    writer.write(buffer.get(i) + "\n");
-                }
+            int charSum = 0;
+            for (int i = range.from; i <= range.to; i++) {
+                charSum += buffer.get(i).length();
+                writer.write(buffer.get(i) + "\n");
             }
+            System.out.println(charSum);
 
         }catch(java.io.IOException e){
             System.out.println("Error writing to file");
@@ -266,7 +252,5 @@ public class EdText {
                 (!structure.hasDestination() || command.destinationLine != null) &&
                 (!structure.argumentRequired() || (command.argument != null && !command.argument.isEmpty()));
     }
-
-
 
 }

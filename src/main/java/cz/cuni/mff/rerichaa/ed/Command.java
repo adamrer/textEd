@@ -41,9 +41,13 @@ public class Command {
                         sb.append(Integer.toString(currLine));
                     } else if (ch == '$'){
                         sb.append(Integer.toString(lastLine));
-                    } else if (ch == '+'){
-                        int nextLine = currLine +1;
-                        sb.append(Integer.toString(nextLine));
+                    } else if (ch == '+' ){
+                        sb.append(Integer.toString(currLine + 1)).append("+");
+
+
+                    }
+                    else if (ch == '-'){
+                        sb.append(Integer.toString(currLine-1));
                     }
                     else if (Character.isLetter(ch)){
                         // only one number in range
@@ -106,6 +110,9 @@ public class Command {
 
         else if (state == State.ARGUMENT && !sb.isEmpty())
             argument = sb.toString();
+
+        else if (state == State.DESTINATION && !sb.isEmpty())
+            destinationLine = Integer.parseInt(sb.toString());
 
     }
     public String toString(){

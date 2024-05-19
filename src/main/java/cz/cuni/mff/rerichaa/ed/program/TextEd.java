@@ -108,6 +108,28 @@ public class TextEd {
                 else
                     System.out.println("! Invalid command");
                 break;
+            case '+':
+                if (command.destinationLine == null){
+                    command.destinationLine = 1;
+                }
+                if (currLine > buffer.size() - command.destinationLine){
+                    System.out.println("! Invalid address");
+                    return;
+                }
+                currLine += command.destinationLine;
+                printBuffer(new Range(currLine, currLine));
+                break;
+            case '-':
+                if (command.destinationLine == null){
+                    command.destinationLine = 1;
+                }
+                if (currLine <= command.destinationLine){
+                    System.out.println("! Invalid address");
+                    return;
+                }
+                currLine -= command.destinationLine;
+                printBuffer(new Range(currLine, currLine));
+                break;
             case 'P':
                 if (command.range.state != RangeState.DEFAULT){
                     System.out.println("!");

@@ -137,7 +137,7 @@ public class TextEd {
                 break;
             case 'n':
                 if (command.range.state == RangeState.DEFAULT && buffer.size() > 1)
-                    command.range = new Range(1, buffer.size()-1);
+                    command.range = new Range(currLine, currLine);
 
 
                 for (int i = command.range.from; i <= command.range.to; i++){

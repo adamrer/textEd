@@ -1,14 +1,13 @@
 package cz.cuni.mff.rerichaa.ed;
 
-import javax.swing.*;
 
 public class Command {
-
-    public char name;
+    public char name; // letter, '!', ' '
     public String argument;
     public Range range;
     public Integer destinationLine;
 
+    public ErrorType error = null;
     public Command(String sCommand, int currLine, int lastLine){
         enum State {
             RANGELOW,
@@ -27,6 +26,7 @@ public class Command {
         Integer plusValue = null; // add to this number in PLUS if set
 
         int rangeLower = -1;
+        loop:
         for (char ch : chars){
             switch (state){
                 case RANGELOW:
@@ -72,6 +72,9 @@ public class Command {
                         name = ch;
                         state = State.DESTINATION;
                     }
+                    else{
+                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
+                    }
 
                     break;
                 case RANGEHIGH:
@@ -102,6 +105,9 @@ public class Command {
                             plusValue = -1;
                         fromHigh = true;
 
+                    }
+                    else{
+                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
                     }
                     break;
                 case PLUS:
@@ -191,7 +197,8 @@ public class Command {
                         state = State.RANGEHIGH;
                     }
                     else{
-                        System.out.println("!"); //TODO: vytvořit neplatný command
+                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
+                        break loop;
                     }
 
                     break;
@@ -220,27 +227,28 @@ public class Command {
             }
 
         }
-        if (state == State.RANGELOW && !sb.isEmpty())
-            range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
-        else if (state == State.PLUS){
+        if (name != '!'){
+            if (state == State.RANGELOW && !sb.isEmpty())
+                range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
+            else if (state == State.PLUS){
 
-            if (!sb.isEmpty()){
+                if (!sb.isEmpty()){
 
-                int num = Integer.parseInt(sb.toString());
+                    int num = Integer.parseInt(sb.toString());
 
-                if (plusValue != null)
-                    if (plusValue > 0)
-                        range = new Range(plusValue + num, plusValue + num);
-                    else if (plusValue.equals(-1))
-                        range = new Range(currLine + num*plusValue, currLine + num*plusValue);
+                    if (plusValue != null)
+                        if (plusValue > 0)
+                            range = new Range(plusValue + num, plusValue + num);
+                        else if (plusValue.equals(-1))
+                            range = new Range(currLine + num*plusValue, currLine + num*plusValue);
+                        else
+                            range = new Range(-(plusValue + num), -(plusValue + num));
+
                     else
-                        range = new Range(-(plusValue + num), -(plusValue + num));
+                        range = new Range(currLine + num, currLine + num);
 
+                }
                 else
-                    range = new Range(currLine + num, currLine + num);
-
-            }
-            else
                 if (plusValue != null && plusValue != -1)
                     range = new Range(plusValue + 1, plusValue + 1);
                 else if (plusValue == null)
@@ -248,16 +256,31 @@ public class Command {
                 else
                     range = new Range(currLine - 1, currLine - 1);
 
+            }
+
+            else if (state == State.ARGUMENT && !sb.isEmpty())
+                argument = sb.toString();
+
+            else if (state == State.DESTINATION && !sb.isEmpty())
+                destinationLine = Integer.parseInt(sb.toString());
+
+            //check boundaries
+            if (range != null && range.state == RangeState.SETRANGE &&
+                    (range.from > range.to ||
+                            range.from < 0 ||
+                            range.to > lastLine))
+                createInvalidCommand(ErrorType.ADDRESS);
+
         }
 
-        else if (state == State.ARGUMENT && !sb.isEmpty())
-            argument = sb.toString();
 
-        else if (state == State.DESTINATION && !sb.isEmpty())
-            destinationLine = Integer.parseInt(sb.toString());
 
-        //TODO: check boundaries
+    }
+    private void createInvalidCommand(ErrorType error){
+        range = null;
+        name = '!';
 
+        this.error = error;
     }
     public String toString(){
         return String.format("%s %s %d %s", range, name, destinationLine, argument);

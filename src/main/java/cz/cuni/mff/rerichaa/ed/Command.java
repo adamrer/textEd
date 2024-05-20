@@ -1,38 +1,50 @@
 package cz.cuni.mff.rerichaa.ed;
 
-
+/**
+ * Class representing TextEd command.
+ */
 public class Command {
-    public char name; // letter, '!', ' '
-    public String argument;
-    public Range range;
-    public Integer destinationLine;
-    public String regex;
-    public String replacement;
+    public char name; // letter, '?', ' '
+    public String argument; // for specifying a file
+    public Range range; // where the command will have an effect
+    public Integer destinationLine; // additional index for copying or moving lines
+    public String regex; // regular expression for substitute command
+    public String replacement; // replacement text that will replace text that matched the regex
+    public String suffixes; // additional suffixes
 
-    public ErrorType error = null;
+    public ErrorType error = null; // error that occurred while parsing the command
+
+    /**
+     * State automat that parses command from string to Command instance. Current line and last line are for
+     * translating ',', '$' and '.' to indices.
+     * @param sCommand Command in string that will be parsed.
+     * @param currLine Current line of the TextEd.
+     * @param lastLine Last line of the TextEd.
+     */
     public Command(String sCommand, int currLine, int lastLine){
+        // States of the automat
         enum State {
-            RANGELOW,
-            RANGEHIGH,
-            PLUS,
-            DESTINATION,
-            ARGUMENT,
-            REGEX,
-            REPLACEMENT
+            RANGELOW, //loading lower index of range
+            RANGEHIGH, // loading higher index of range
+            PLUS, // translating relative addressing
+            DESTINATION, // loading destination line
+            ARGUMENT, // loading argument
+            REGEX, // loading regular expression
+            REPLACEMENT, // loading replacement string
+            SUFFIXES // loading suffixes
         }
         name = ' ';
         char[] chars = sCommand.toCharArray();
 
         State state = State.RANGELOW;
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(); // for loading values
         boolean fromHigh = false; // going from RANGEHIGH to PLUS
         Integer plusValue = null; // add to this number in PLUS if set
         boolean firstSlashRead = false; // beginning of regex read
-        boolean escape = false;
+        boolean escape = false; // escaping '/' and '\' in the substitute command
 
         int rangeLower = -1;
-        loop:
         for (char ch : chars){
             switch (state){
                 case RANGELOW:
@@ -46,6 +58,10 @@ public class Command {
                         else {
                             if (lastLine > 0)
                                 range = new Range(1 , lastLine);
+                            else {
+                                createInvalidCommand(ErrorType.ADDRESS);
+                                return;
+                            }
                         }
                         state = State.RANGEHIGH;
                         sb = new StringBuilder();
@@ -53,7 +69,7 @@ public class Command {
                         sb.append(Integer.toString(currLine));
                     } else if (ch == '$'){
                         sb.append(Integer.toString(lastLine));
-                    } else if (ch == '+' || ch == '-'){
+                    } else if (ch == '+' || ch == '-'){// relative addressing
                         state = State.PLUS;
                         if (!sb.isEmpty()){
                             if (ch == '+')
@@ -72,7 +88,7 @@ public class Command {
                             range = new Range(rangeLower, rangeLower);
                         }
                         else{ // no number given
-                            range = new Range(RangeState.DEFAULT);
+                            range = new Range();
                         }
                         sb = new StringBuilder();
                         name = ch;
@@ -214,7 +230,7 @@ public class Command {
                     }
                     else{
                         createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
-                        break loop;
+                        return;
                     }
 
                     break;
@@ -271,7 +287,16 @@ public class Command {
 
                     else {
                         replacement = sb.toString();
+                        state = State.SUFFIXES;
                         sb = new StringBuilder();
+                    }
+                    break;
+                case SUFFIXES:
+                    if (ch == 'g' || ch == 'I' || ch == 'i' || ch == 'n' || Character.isDigit(ch))
+                        sb.append(ch);
+                    else {
+                        createInvalidCommand(ErrorType.SUFFIX);
+                        return;
                     }
                     break;
                 case ARGUMENT:
@@ -279,60 +304,67 @@ public class Command {
                         sb.append(ch);
                     }
                     break;
+
             }
 
         }
-        if (name != '?'){
-            if (state == State.RANGELOW && !sb.isEmpty())
-                range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
-            else if (state == State.PLUS){
 
-                if (!sb.isEmpty()){
-
-                    int num = Integer.parseInt(sb.toString());
-
-                    if (plusValue != null)
-                        if (plusValue > 0)
-                            range = new Range(plusValue + num, plusValue + num);
-                        else if (plusValue.equals(-1))
-                            range = new Range(currLine + num*plusValue, currLine + num*plusValue);
-                        else
-                            range = new Range(-(plusValue + num), -(plusValue + num));
-
+        if (name == '?')
+            return;
+        if (state == State.RANGELOW && !sb.isEmpty())
+            range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
+        else if (state == State.PLUS){
+            if (!sb.isEmpty()){
+                int num = Integer.parseInt(sb.toString());
+                if (plusValue != null)
+                    if (plusValue > 0)
+                        range = new Range(plusValue + num, plusValue + num);
+                    else if (plusValue.equals(-1))
+                        range = new Range(currLine + num*plusValue, currLine + num*plusValue);
                     else
-                        range = new Range(currLine + num, currLine + num);
+                        range = new Range(-(plusValue + num), -(plusValue + num));
 
-                }
                 else
+                    range = new Range(currLine + num, currLine + num);
+
+            } else {
                 if (plusValue != null && plusValue != -1)
                     range = new Range(plusValue + 1, plusValue + 1);
                 else if (plusValue == null)
                     range = new Range(currLine +1, currLine+1);
                 else
                     range = new Range(currLine - 1, currLine - 1);
-
             }
-            else if (state == State.REGEX){
-                createInvalidCommand(ErrorType.REGEX);
-            }
-            else if (state == State.REPLACEMENT && replacement == null){
-                replacement = sb.toString();
-            }
-            else if (state == State.ARGUMENT && !sb.isEmpty())
-                argument = sb.toString();
-
-            else if (state == State.DESTINATION && !sb.isEmpty())
-                destinationLine = Integer.parseInt(sb.toString());
-
-            //check boundaries
-            if (range != null && range.state == RangeState.SETRANGE &&
-                    (range.from > range.to ||
-                            range.from < 0 ||
-                            range.to > lastLine))
-                createInvalidCommand(ErrorType.ADDRESS);
-
         }
+        else if (state == State.REGEX){
+            createInvalidCommand(ErrorType.REGEX);
+        }
+        else if (state == State.REPLACEMENT && replacement == null){
+            replacement = sb.toString();
+            suffixes = "";
+        }
+        else if (state == State.SUFFIXES){
+            suffixes = sb.toString();
+        }
+        else if (state == State.ARGUMENT && !sb.isEmpty())
+            argument = sb.toString();
+
+        else if (state == State.DESTINATION && !sb.isEmpty())
+            destinationLine = Integer.parseInt(sb.toString());
+
+        //check boundaries
+        if (range != null && range.state == RangeState.RANGESET &&
+                (range.from > range.to ||
+                        range.from < 0 ||
+                        range.to > lastLine))
+            createInvalidCommand(ErrorType.ADDRESS);
+
     }
+
+    /**
+     * Creates invalid command. Called when the command is invalid.
+     * @param error Type of the error that made it invalid.
+     */
     private void createInvalidCommand(ErrorType error){
         range = null;
         name = '?';
@@ -340,7 +372,7 @@ public class Command {
         this.error = error;
     }
     public String toString(){
-        return String.format("%s %s %d %s %s %s", range, name, destinationLine, argument, regex, replacement);
+        return String.format("%s %s %d %s %s %s %s", range, name, destinationLine, argument, regex, replacement, suffixes);
     }
 
 

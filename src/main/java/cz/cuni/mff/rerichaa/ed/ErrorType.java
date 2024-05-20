@@ -11,5 +11,7 @@ public enum ErrorType {
     UNSAVED,
     DEFAULTFILE,
     ARGUMENT,
-    REGEX
+    REGEX,
+    SUFFIX,
+    NOMATCH
 }

@@ -6,6 +6,8 @@ public class Command {
     public String argument;
     public Range range;
     public Integer destinationLine;
+    public String regex;
+    public String replacement;
 
     public ErrorType error = null;
     public Command(String sCommand, int currLine, int lastLine){
@@ -14,7 +16,9 @@ public class Command {
             RANGEHIGH,
             PLUS,
             DESTINATION,
-            ARGUMENT
+            ARGUMENT,
+            REGEX,
+            REPLACEMENT
         }
         name = ' ';
         char[] chars = sCommand.toCharArray();
@@ -24,6 +28,8 @@ public class Command {
         StringBuilder sb = new StringBuilder();
         boolean fromHigh = false; // going from RANGEHIGH to PLUS
         Integer plusValue = null; // add to this number in PLUS if set
+        boolean firstSlashRead = false; // beginning of regex read
+        boolean escape = false;
 
         int rangeLower = -1;
         loop:
@@ -70,7 +76,10 @@ public class Command {
                         }
                         sb = new StringBuilder();
                         name = ch;
-                        state = State.DESTINATION;
+                        if (name == 's')
+                            state = State.REGEX;
+                        else
+                            state = State.DESTINATION;
                     }
                     else{
                         createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
@@ -85,8 +94,12 @@ public class Command {
                         if (!sb.isEmpty()){
                             range = new Range(rangeLower, Integer.parseInt(sb.toString()));
                             sb = new StringBuilder();
-                            state = State.DESTINATION;
+
                         }
+                        if (ch == 's')
+                            state = State.REGEX;
+                        else
+                            state = State.DESTINATION;
                         name = ch;
                     } else if (ch == '.'){
                         sb.append(Integer.toString(currLine));
@@ -150,7 +163,10 @@ public class Command {
 
                         plusValue = null;
                         name = ch;
-                        state = State.DESTINATION;
+                        if (name == 's')
+                            state = State.REGEX;
+                        else
+                            state = State.DESTINATION;
                     }
                     else if (ch == ','){
 
@@ -219,6 +235,45 @@ public class Command {
 
                     }
                     break;
+                case REGEX:
+                    if (ch == '/' && !firstSlashRead){
+                        firstSlashRead = true;
+                    } else if (ch != '/' && !firstSlashRead){
+                        createInvalidCommand(ErrorType.REGEX);
+                        return;
+                    }
+                    else if (ch == '\\') {
+                        if (escape) {
+                            sb.append("\\\\");
+                            escape = false;
+                        }
+                        else
+                            escape = true;
+                    }
+                    else if (ch != '/' || escape ){
+                        if (escape && ch!= '/')
+                            sb.append('\\').append(ch);
+                        else
+                            sb.append(ch);
+                        escape = false;
+
+                    }
+                    else {// found second '/'
+                        regex = sb.toString();
+                        state = State.REPLACEMENT;
+                        sb = new StringBuilder();
+
+                    }
+                    break;
+                case REPLACEMENT:
+                    if (ch != '/')
+                        sb.append(ch);
+
+                    else {
+                        replacement = sb.toString();
+                        sb = new StringBuilder();
+                    }
+                    break;
                 case ARGUMENT:
                     if (!Character.isWhitespace(ch)){
                         sb.append(ch);
@@ -227,7 +282,7 @@ public class Command {
             }
 
         }
-        if (name != '!'){
+        if (name != '?'){
             if (state == State.RANGELOW && !sb.isEmpty())
                 range = new Range(Integer.parseInt(sb.toString()), Integer.parseInt(sb.toString()));
             else if (state == State.PLUS){
@@ -257,7 +312,12 @@ public class Command {
                     range = new Range(currLine - 1, currLine - 1);
 
             }
-
+            else if (state == State.REGEX){
+                createInvalidCommand(ErrorType.REGEX);
+            }
+            else if (state == State.REPLACEMENT && replacement == null){
+                replacement = sb.toString();
+            }
             else if (state == State.ARGUMENT && !sb.isEmpty())
                 argument = sb.toString();
 
@@ -272,18 +332,15 @@ public class Command {
                 createInvalidCommand(ErrorType.ADDRESS);
 
         }
-
-
-
     }
     private void createInvalidCommand(ErrorType error){
         range = null;
-        name = '!';
+        name = '?';
 
         this.error = error;
     }
     public String toString(){
-        return String.format("%s %s %d %s", range, name, destinationLine, argument);
+        return String.format("%s %s %d %s %s %s", range, name, destinationLine, argument, regex, replacement);
     }
 
 

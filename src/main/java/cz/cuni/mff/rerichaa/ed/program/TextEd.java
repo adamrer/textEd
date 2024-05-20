@@ -11,6 +11,7 @@ import java.util.List;
 public class TextEd {
 
     private static List<String> buffer = new ArrayList<>();
+    private static List<String> prevBuffer = new ArrayList<>();
     private static String defaultFile; // used when file is not specified
     private static int currLine; // current line
     private static boolean showPrompt = false;
@@ -28,27 +29,59 @@ public class TextEd {
             put(ErrorType.WRITINGFILE, "Error writing to file");
             put(ErrorType.WRITINGOUTPUT, "Error writing to output");
             put(ErrorType.UNSAVED, "Warning: Buffer has unsaved changes");
-            put(ErrorType.CURRENTFILE, "Current file not set");
+            put(ErrorType.DEFAULTFILE, "Default file not set");
+            put(ErrorType.ARGUMENT, "Invalid argument");
+            put(ErrorType.REGEX, "Missing pattern delimiter");
         }
     };
     static Hashtable<Character, CommandStructure> knownCommands = new Hashtable<>(){
-        {
+        {//noDestination, noArgument
             //prompt
-            put('P', new CommandStructure(false,false, false, false));
+            put('P', new CommandStructure(true, true));
             //print
-            put('p', new CommandStructure( true,false, false, false));
+            put('p', new CommandStructure( true, true));
+            //print lines with numbers
+            put('n', new CommandStructure( true, true));
             //read
-            put('r', new CommandStructure( false,false, false, true));
+            put('r', new CommandStructure( true, false));
+            //write to file
+            put('w', new CommandStructure( true, false));
             //change current line
-            put(' ', new CommandStructure(true,true, false, false));
+            put(' ', new CommandStructure(true, true));
             //change lines
-            put('c', new CommandStructure(true,false, false, false));
+            put('c', new CommandStructure(true, true));
             //delete lines
-            put('d', new CommandStructure(true, false, false, false));
-            //number lines
-            put('n', new CommandStructure(true, false, false, false));
-            //write buffer to file
-            put('w', new CommandStructure( true, false, false, false));
+            put('d', new CommandStructure(true, true));
+            //edit file
+            put('e', new CommandStructure(true, false));
+            // edit file
+            put('E', new CommandStructure( true, false));
+            //substitute regex
+            put('s', new CommandStructure(true, true));
+            //insert lines
+            put('i', new CommandStructure( true, true));
+            //append lines
+            put('a', new CommandStructure( true, true));
+            // join lines
+            put('j', new CommandStructure(true, true));
+            //copy lines to
+            put('t', new CommandStructure(false, true));
+            //quit
+            put('q', new CommandStructure(true, true));
+            //quit
+            put('Q', new CommandStructure(true, true));
+            //invalid command
+            put('?', new CommandStructure( true, true));
+            //show last error message
+            put('h', new CommandStructure( true, true));
+            // show error messages
+            put('H', new CommandStructure(true, true));
+            // change default file
+            put('f', new CommandStructure(true, false));
+            //undo last buffer changes
+            put('u', new CommandStructure(true, true));
+            // move lines to
+            put('m', new CommandStructure(false, true));
 
         }
     };
@@ -59,10 +92,18 @@ public class TextEd {
         currLine = 0;
         defaultFile = null;
         showPrompt = false;
+        showHelp = false;
+        prevBuffer = new ArrayList<>();
 
     }
     public static void main(String[] args){
         initialize();
+        if (args.length >= 1){
+            defaultFile = args[0];
+            readFile(defaultFile, new Range(RangeState.DEFAULT));
+        }
+
+
         System.out.println("Working Directory = " + System.getProperty("user.dir"));
         try(BufferedReader reader = new BufferedReader( new InputStreamReader( System.in ) )){
             if (showPrompt) System.out.print("* ");
@@ -74,10 +115,10 @@ public class TextEd {
                     break;
                 Command command = new Command(input, currLine, buffer.size()-1);
 
-                //if (checkStructure(command))
-                execute(command, reader);
-
-                //else System.out.println("? Invalid command");
+                if (checkStructure(command))
+                    execute(command, reader);
+//                    System.out.println(command);
+                else printError(ErrorType.UNKNOWNCOMMAND);
 
                 if (showPrompt) System.out.print("* ");
                 input = reader.readLine();
@@ -92,54 +133,87 @@ public class TextEd {
     }
     public static void execute(Command command, BufferedReader inputReader){
         switch(command.name){
-            case '!':
+            case '?': // invalid command
                 printError(command.error);
                 break;
-            case 'q':
+            case 'q': // quit if changes were saved
+                if (command.range.state != RangeState.DEFAULT){
+                    printError(ErrorType.ADDRESS);
+                    break;
+                }
+
                 printError(ErrorType.UNSAVED);
                 break;
-            case 'h':
+            case 'h': // show last error message
+                if (command.range.state != RangeState.DEFAULT){
+                    printError(ErrorType.ADDRESS);
+                    break;
+                }
                 System.out.println("! " + lastError);
                 break;
-            case 'H':
+            case 'H': // show/hide error messages
+
                 if (command.range.state != RangeState.DEFAULT){
                     printError(ErrorType.ADDRESS);
                     return;
                 }
                 showHelp = !showHelp;
                 break;
-            case 'P':
+            case 'P':// show/hide prompt
                 if (command.range.state != RangeState.DEFAULT){
                     printError(ErrorType.ADDRESS);
                     return;
                 }
                 showPrompt = !showPrompt;
                 break;
-            case 'r':
+            case 'f':// set default file or print current default file
+                if (command.range.state != RangeState.DEFAULT){
+                    printError(ErrorType.ADDRESS);
+                    return;
+                }
+                if (command.argument == null && defaultFile != null){
+                    System.out.println(defaultFile);
+                    return;
+                }
+                else if (command.argument != null){
+                    defaultFile = command.argument;
+                    return;
+                }
+                else{
+                    printError(ErrorType.DEFAULTFILE);
+                    return;
+                }
+
+            case 'r': // read file
 
                 if (command.argument == null && defaultFile == null)
-                    printError(ErrorType.CURRENTFILE);
-                else if (command.argument != null)
+                    printError(ErrorType.DEFAULTFILE);
+                else if (command.argument != null){
+                    saveBuffer();
                     readFile(command.argument, command.range);
-                else
+
+                } else{
+                    saveBuffer();
                     readFile(defaultFile, command.range);
+                }
                 break;
-            case 'e':
+            case 'e': // edit file
                 if (changesMade){
                     printError(ErrorType.UNSAVED);
                 }
                 else{
-                    buffer = new ArrayList<>();
-                    buffer.add("");
-                    if (command.range.from <= 0){
-                        printError(ErrorType.ADDRESS);
-                        break;
-                    }
-                    readFile(command.argument, command.range);
+                    saveBuffer();
+
+                    editFile(command.range, command.argument);
                 }
 
                 break;
-            case 'p':
+            case 'E':
+                saveBuffer();
+
+                editFile(command.range, command.argument);
+                break;
+            case 'p': // print lines
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(currLine, currLine);
                 if (command.range.from <= 0){
@@ -148,8 +222,8 @@ public class TextEd {
                 }
                 printBuffer(command.range);
                 break;
-            case ' ':
-                if (command.range.state == RangeState.SETRANGE){
+            case ' ': // change current line (number)
+                if (command.range != null && command.range.state == RangeState.SETRANGE){
 
                     int lineNumber = command.range.from;
                     if (lineNumber < buffer.size() && lineNumber > 0){
@@ -163,32 +237,47 @@ public class TextEd {
                     printError(ErrorType.ADDRESS);
                 break;
 
-            case 'c':
+            case 'c': // change lines
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(currLine, currLine);
                 if (command.range.from <= 0){
                     printError(ErrorType.ADDRESS);
                     break;
                 }
+                saveBuffer();
+
                 deleteLines(command.range);
-                appendLines(command.range.from, inputReader);
+                appendLines(command.range.from-1, inputReader);
                 break;
-            case 'a':
+            case 'a': // append lines
                 if (command.range.state == RangeState.DEFAULT)
-                    command.range = new Range(buffer.size(), buffer.size());
+                    command.range = new Range(buffer.size()-1, buffer.size()-1);
                 appendLines(command.range.from, inputReader);
+                saveBuffer();
+
                 break;
-            case 'd':
+            case 'i': // insert lines
+                if (command.range.state == RangeState.DEFAULT)
+                    command.range = new Range(currLine, currLine);
+                if (command.range.from == 0)
+                    command.range.from = 1;
+                saveBuffer();
+
+                appendLines(command.range.from-1, inputReader);
+                break;
+            case 'd': //delete lines
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(currLine, currLine);
                 if (command.range.from <= 0){
                     printError(ErrorType.ADDRESS);
                     break;
                 }
+                saveBuffer();
+
                 deleteLines(command.range);
 
                 break;
-            case 'n':
+            case 'n': // print lines with numbers
                 if (command.range.state == RangeState.DEFAULT && buffer.size() > 1)
                     command.range = new Range(currLine, currLine);
                 if (command.range.from <= 0){
@@ -200,14 +289,61 @@ public class TextEd {
                     System.out.println(i + "\t" + buffer.get(i));
                 }
                 break;
-            case 'w':
+            case 'w': // write buffer to file
                 if ((command.argument == null || command.argument.isEmpty()) && !defaultFile.isEmpty())
                     writeBuffer(defaultFile, command.range);
                 else if (command.argument != null && !command.argument.isEmpty())
                     writeBuffer(command.argument, command.range);
                 else
-                    printError(ErrorType.CURRENTFILE);
+                    printError(ErrorType.DEFAULTFILE);
                 break;
+            case 't': // copy lines
+                if (command.range.state == RangeState.DEFAULT)
+                    command.range = new Range(currLine, currLine);
+                if (command.destinationLine == null) {
+                    command.destinationLine = currLine;
+                }
+                saveBuffer();
+
+                copyLines(command.range, command.destinationLine);
+                break;
+            case 'm': // move lines
+                if (command.range.state == RangeState.DEFAULT)
+                    command.range = new Range(currLine, currLine);
+                if (command.destinationLine == null) {
+                    command.destinationLine = currLine;
+                }
+                saveBuffer();
+
+                break;
+            case 'j': // join lines to one
+                if (command.range.state == RangeState.DEFAULT) {
+                    if (currLine +1 == buffer.size()){
+                        printError(ErrorType.ADDRESS);
+                        return;
+                    }
+                    command.range = new Range(currLine, currLine + 1);
+                }
+                joinLines(command.range);
+
+                break;
+            case 's': // substitute text found by regex
+                saveBuffer();
+
+                break;
+            case 'u': // undo changes on buffer, get buffer to the previous state
+                if (command.range.state != RangeState.DEFAULT){
+                    printError(ErrorType.ADDRESS);
+                    return;
+                }
+                else if (command.destinationLine != null) {
+                    printError(ErrorType.DESTINATION);
+                    return;
+                }
+//                else if (command.argument)
+                loadPreviousBuffer();
+                break;
+
             default:
                 printError(ErrorType.UNKNOWNCOMMAND);
                 break;
@@ -217,6 +353,43 @@ public class TextEd {
 
     }
 
+    private static void substituteText(Range range, String regex, String replacement){
+        for (int i = range.from; i <= range.to; i++){
+
+        }
+    }
+    private static void saveBuffer(){
+        prevBuffer = new ArrayList<>(buffer);
+    }
+    private static void loadPreviousBuffer(){
+        List<String> temp = new ArrayList<>(buffer);
+        buffer = prevBuffer;
+        prevBuffer = temp;
+    }
+    private static void copyLines(Range range, int destination){
+        List<String> copy = new ArrayList<>();
+        for (int i = range.from; i <= range.to; i++){
+            copy.add(buffer.get(i));
+        }
+        for (int i = range.to; i >= range.from; i--){
+            buffer.add(destination, copy.get(i-range.from));
+        }
+    }
+    private static void joinLines(Range range){
+        for (int i = range.from+1; i <= range.to; i++){
+            buffer.set(range.from, buffer.get(range.from) + buffer.get(i));
+        }
+        deleteLines(new Range(range.from+1, range.to));
+    }
+    private static void editFile(Range range, String file){
+        buffer = new ArrayList<>();
+        buffer.add("");
+        if (range.from < 0){
+            printError(ErrorType.ADDRESS);
+            return;
+        }
+        readFile(file, range);
+    }
     private static void deleteLines(Range range){
         if (range.to >= range.from) {
             buffer.subList(range.from, range.to + 1).clear();
@@ -228,16 +401,16 @@ public class TextEd {
     private static void printError(ErrorType error){
         lastError = errorMessages.get(error);
         if (showHelp)
-            System.out.println("! " + errorMessages.get(error));
+            System.out.println("? " + errorMessages.get(error));
         else
-            System.out.println("!");
+            System.out.println("?");
     }
-    private static void appendLines(int from, BufferedReader inputReader){
-        int index = from;
+    private static void appendLines(int after, BufferedReader inputReader){
+        int index = after;
         try{
             String line = inputReader.readLine();
             while(!line.equals(".")){
-                buffer.add(index, line);
+                buffer.add(index+1, line);
                 index++;
                 line = inputReader.readLine();
             }
@@ -249,7 +422,8 @@ public class TextEd {
         changesMade = true;
     }
     private static void readFile(String filePath, Range range){
-
+        if (filePath == null)
+            filePath = defaultFile;
         try(BufferedReader reader = new BufferedReader(new FileReader(filePath))){
 
             String line = reader.readLine();
@@ -321,10 +495,8 @@ public class TextEd {
             return false;
         }
         CommandStructure structure = knownCommands.get(command.name);
-        return (!structure.hasRange() || command.range != null) &&
-                (!structure.onlyOneLine() || command.range.from == command.range.to) &&
-                (!structure.hasDestination() || command.destinationLine != null) &&
-                (!structure.argumentRequired() || (command.argument != null && !command.argument.isEmpty()));
+        return (!structure.noDestination() || command.destinationLine == null) &&
+                (!structure.noArgument() || command.argument == null || command.argument.isEmpty());
     }
 
 }

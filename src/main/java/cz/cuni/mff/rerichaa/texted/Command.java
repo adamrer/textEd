@@ -4,15 +4,38 @@ package cz.cuni.mff.rerichaa.texted;
  * Class representing TextEd command.
  */
 public class Command {
-    public char name; // letter, '?', ' '
-    public String argument; // for specifying a file
-    public Range range; // where the command will have an effect
-    public Integer destinationLine; // additional index for copying or moving lines
-    public String regex; // regular expression for substitute command
-    public String replacement; // replacement text that will replace text that matched the regex
-    public String suffixes; // additional suffixes
-
-    public ErrorType error = null; // error that occurred while parsing the command
+    /**
+     * letter, '?', ' '
+     */
+    public char name;
+    /**
+     * for specifying a file
+     */
+    public String argument;
+    /**
+     * where the command will have an effect
+     */
+    public Range range;
+    /**
+     * additional index for copying or moving lines
+     */
+    public Integer destinationLine;
+    /**
+     * regular expression for substitute command
+     */
+    public String regex;
+    /**
+     * replacement text that will replace text that matched the regex
+     */
+    public String replacement;
+    /**
+     * additional suffixes
+     */
+    public String suffixes;
+    /**
+     * error that occurred while parsing the command
+     */
+    public ErrorType error = null;
 
     /**
      * State automaton that parses command from string to Command instance. Current line and last line are for
@@ -22,7 +45,9 @@ public class Command {
      * @param lastLine Last line of the TextEd.
      */
     public Command(String sCommand, int currLine, int lastLine){
-        // States of the automaton
+        /**
+         * States of the automaton
+         */
         enum State {
             /**
              * Loading lower index of range

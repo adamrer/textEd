@@ -7,15 +7,47 @@ import java.util.List;
  * Class that receives Tokens and WORD Tokens are aligned to the lineWidth
  */
 public class TextAligner {
-    private enum AlignerState { LINE_IS_FULL, END_OF_PARAGRAPH, FILLING_LINE }
+    /**
+     * Represents the state in which the aligner is.
+     */
+    private enum AlignerState {
+        /**
+         * Ready to align loaded words to aligned line.
+         */
+        LINE_IS_FULL,
+        /**
+         * Loaded words must be aligned to the left.
+         */
+        END_OF_PARAGRAPH,
+        /**
+         * Line is not long enough. Loading more words.
+         */
+        FILLING_LINE }
     private AlignerState state;
-
-    private final int lineWidth; // width of a line
-    private int currLineWidth; // sum of lengths of words in lineWords
-    private static final int MANDATORY_SPACE_COUNT = 1; // words have to be separated with this count of spaces
-    private List<String> lineWords; // words on currently processing line
-    private String nextLineWord; // word that doesn't fit on the line
-    private boolean firstLineOfParagraph; // if the line should be aligned to the left
+    /**
+     * width of a line
+     */
+    private final int lineWidth;
+    /**
+     * sum of lengths of words in lineWords
+     */
+    private int currLineWidth;
+    /**
+     * words have to be separated with this count of spaces
+     */
+    private static final int MANDATORY_SPACE_COUNT = 1;
+    /**
+     * words on currently processing line
+     */
+    private List<String> lineWords;
+    /**
+     * word that doesn't fit on the line
+     */
+    private String nextLineWord;
+    /**
+     * if the line should be aligned to the left
+     */
+    private boolean firstLineOfParagraph;
 
     /**
      * Creates a TextAligner that will align received WORD Tokens to lines with length of specified lineWidth.
@@ -75,8 +107,6 @@ public class TextAligner {
                     firstLineOfParagraph = true;
                     output = line;
                 }
-                break;
-            case FILLING_LINE:
                 break;
             default:
                 break;

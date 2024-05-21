@@ -22,6 +22,15 @@
                 <version>3.0.0</version>
                 <configuration>
                     <mainClass>cz.cuni.mff.rerichaa.texted.TextEd</mainClass>
+
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <configuration>
+                    <overview>${basedir}/overview.html</overview>
                 </configuration>
             </plugin>
         </plugins>

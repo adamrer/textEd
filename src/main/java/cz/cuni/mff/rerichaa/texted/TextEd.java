@@ -19,14 +19,31 @@ public class TextEd {
 
     private static List<String> buffer = new ArrayList<>();
     private static List<String> prevBuffer = new ArrayList<>();
-    private static String defaultFile = null; // used when file is not specified
-    private static int currLine; // current line
+    /**
+     * Used when file is not specified
+     */
+    private static String defaultFile = null;
+    /**
+     * Current line
+     */
+    private static int currLine;
     private static boolean showPrompt = false;
-    private static boolean showHelp = false; // show error messages
-    private static String lastError = null;
-    private static boolean changesMade = false; // unsaved changes in the buffer
+    /**
+     * Show error messages
+     */
+    private static boolean showHelp = false;
+    /**
+     * Last error message
+     */
+    private static String lastError = "None";
+    /**
+     * Unsaved changes in the buffer
+     */
+    private static boolean changesMade = false;
 
-    // Error messages
+    /**
+     * Error messages
+     */
     static final Hashtable<ErrorType, String> errorMessages = new Hashtable<>(){
         {
             put(ErrorType.ADDRESS, "Invalid address");
@@ -45,7 +62,9 @@ public class TextEd {
             put(ErrorType.TEXT_ALIGN, "Error aligning buffer");
         }
     };
-    // Known commands for TextEd
+    /**
+     *  Known commands for TextEd
+     */
     static final Hashtable<Character, CommandStructure> knownCommands = new Hashtable<>(){
         {//noDestination, noArgument
             //prompt

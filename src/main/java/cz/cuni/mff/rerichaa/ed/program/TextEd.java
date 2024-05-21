@@ -44,7 +44,7 @@ public class TextEd {
         {//noDestination, noArgument
             //prompt
             put('P', new CommandStructure(true, true));
-            //print
+            //print lines
             put('p', new CommandStructure( true, true));
             //print lines with numbers
             put('n', new CommandStructure( true, true));
@@ -101,7 +101,7 @@ public class TextEd {
 
         if (args.length >= 1){ // load file from argument
             defaultFile = args[0];
-            readFile(defaultFile, new Range());
+            readFile(defaultFile, 0);
         }
 
 
@@ -121,7 +121,6 @@ public class TextEd {
                 else
                     printError(ErrorType.UNKNOWNCOMMAND);
 //                System.out.println(command);
-
                 if (showPrompt) System.out.print("* ");
                 input = reader.readLine();
 
@@ -195,32 +194,32 @@ public class TextEd {
 
             case 'r': // read file
 
+                if (command.range.state == RangeState.DEFAULT)
+                    command.range = new Range(buffer.size()-1, buffer.size()-1);
                 if (command.argument == null && defaultFile == null)
                     printError(ErrorType.DEFAULTFILE);
                 else if (command.argument != null){
                     saveBuffer();
-                    readFile(command.argument, command.range);
+                    readFile(command.argument, command.range.from);
 
                 } else{
                     saveBuffer();
-                    readFile(defaultFile, command.range);
+                    readFile(defaultFile, command.range.from);
                 }
                 break;
             case 'e': // edit file
-                if (changesMade){
+                if (changesMade)
                     printError(ErrorType.UNSAVED);
-                }
                 else{
                     saveBuffer();
-
-                    editFile(command.range, command.argument);
+                    editFile(command.argument);
                 }
 
                 break;
             case 'E':
                 saveBuffer();
 
-                editFile(command.range, command.argument);
+                editFile(command.argument);
                 break;
             case 'p': // print lines
                 if (command.range.state == RangeState.DEFAULT)
@@ -322,6 +321,7 @@ public class TextEd {
                 }
                 saveBuffer();
 
+                moveLines(command.range, command.destinationLine);
                 break;
             case 'j': // join lines to one
                 if (command.range.state == RangeState.DEFAULT) {
@@ -370,7 +370,7 @@ public class TextEd {
      * @param suffixes Additional suffixes:
      *                 g (global) - replace all matches with replacement
      *                 n (number) - print last matched line with index number
-     *                 I, i (insensitive) - matching text is case insensitive
+     *                 I, i (insensitive) - matching text is case-insensitive
      */
     private static void substituteText(Range range, String regex, String replacement, String suffixes){
         boolean global = suffixes.contains("g");
@@ -409,6 +409,24 @@ public class TextEd {
     }
 
     /**
+     * Moves lines from buffer in specified range to the destination index. If the destination index is too big
+     * then it moves lines on the end of the buffer.
+     * @param range Line indices which will be moved.
+     * @param destination Line index, where the lines will be moved.
+     */
+    private static void moveLines(Range range, int destination){
+        List<String> copy = new ArrayList<>();
+        for(int i = range.from; i <= range.to; i++){
+            copy.add(buffer.get(i));
+        }
+        deleteLines(range);
+        int appendIndex = Math.min(destination, buffer.size());
+        for (int i = appendIndex; i < appendIndex + copy.size(); i++){
+            buffer.add(i, copy.get(i-appendIndex));
+        }
+        currLine = destination + copy.size() -1;
+    }
+    /**
      * Prints lines from buffer in range with index numbers.
      * @param range Range of line indices
      */
@@ -441,7 +459,7 @@ public class TextEd {
     /**
      * Copies lines in range from buffer and appends them after destination.
      * @param range Range of line indices which will be copied.
-     * @param destination Destination index where copied lines will be appended.
+     * @param destination Destination index where copied lines will be inserted.
      */
     private static void copyLines(Range range, int destination){
         changesMade = true;
@@ -471,19 +489,14 @@ public class TextEd {
     /**
      * Deletes buffer and reads specified file. If file not specified, default file will be used.
      * If file is specified, it is set as default file.
-     * @param range
      * @param file File from which to read.
      */
-    private static void editFile(Range range, String file){
+    private static void editFile(String file){
         changesMade = true;
 
         buffer = new ArrayList<>();
         buffer.add("");
-        if (range.from < 0){
-            printError(ErrorType.ADDRESS);
-            return;
-        }
-        readFile(file, range);
+        readFile(file, 0);
     }
 
     /**
@@ -534,12 +547,12 @@ public class TextEd {
     }
 
     /**
-     * Reads lines from specified file and loads them to the buffer. Prints the count of characters read.
+     * Reads all lines from specified file and loads them to the buffer. Prints the count of characters read.
      * @param filePath File for reading lines. If not specified, default file will be used. If specified, file will be set
      *                 as default.
-     * @param range
+     * @param appendAfter Read lines are appended after this line index.
      */
-    private static void readFile(String filePath, Range range){// TODO: číst celý soubor a range určuje kam se to appendne
+    private static void readFile(String filePath, int appendAfter){//
         if (filePath == null)
             filePath = defaultFile;
         try(BufferedReader reader = new BufferedReader(new FileReader(filePath))){
@@ -547,22 +560,14 @@ public class TextEd {
             String line = reader.readLine();
             int charSum = 0;
 
-            if (range.state == RangeState.DEFAULT){
-                while(line != null){
-                    buffer.add(line);
-                    charSum += line.length();
-                    line = reader.readLine();
-                }
-            }else{
-                int currentLine = range.from;
-                int finalLine= range.to;
-                while(currentLine <= finalLine){
-                    buffer.add(line);
-                    charSum += line.length();
-                    currentLine++;
-                    line = reader.readLine();
-                }
+            int i = appendAfter;
+            while(line != null){
+                buffer.add(i + 1, line);
+                i++;
+                charSum += line.length();
+                line = reader.readLine();
             }
+
 
             if (buffer.size() > 1){
                 currLine = buffer.size()-1;

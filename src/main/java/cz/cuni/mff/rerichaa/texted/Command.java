@@ -1,4 +1,4 @@
-package cz.cuni.mff.rerichaa.ed;
+package cz.cuni.mff.rerichaa.texted;
 
 /**
  * Class representing TextEd command.
@@ -15,23 +15,47 @@ public class Command {
     public ErrorType error = null; // error that occurred while parsing the command
 
     /**
-     * State automat that parses command from string to Command instance. Current line and last line are for
+     * State automaton that parses command from string to Command instance. Current line and last line are for
      * translating ',', '$' and '.' to indices.
      * @param sCommand Command in string that will be parsed.
      * @param currLine Current line of the TextEd.
      * @param lastLine Last line of the TextEd.
      */
     public Command(String sCommand, int currLine, int lastLine){
-        // States of the automat
+        // States of the automaton
         enum State {
-            RANGELOW, //loading lower index of range
-            RANGEHIGH, // loading higher index of range
-            PLUS, // translating relative addressing
-            DESTINATION, // loading destination line
-            ARGUMENT, // loading argument
-            REGEX, // loading regular expression
-            REPLACEMENT, // loading replacement string
-            SUFFIXES // loading suffixes
+            /**
+             * Loading lower index of range
+             */
+            RANGELOW,
+            /**
+             * Loading higher index of range
+             */
+            RANGEHIGH,
+            /**
+             * Translating relative addressing
+             */
+            PLUS,
+            /**
+             * Loading destination line
+             */
+            DESTINATION,
+            /**
+             * Loading argument
+             */
+            ARGUMENT,
+            /**
+             * Loading regular expression
+             */
+            REGEX,
+            /**
+             * Loading replacement string
+             */
+            REPLACEMENT,
+            /**
+             * Loading suffixes
+             */
+            SUFFIXES
         }
         name = ' ';
         char[] chars = sCommand.toCharArray();
@@ -98,7 +122,7 @@ public class Command {
                             state = State.DESTINATION;
                     }
                     else{
-                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
+                        createInvalidCommand(ErrorType.UNKNOWN_COMMAND);
                     }
 
                     break;
@@ -136,7 +160,7 @@ public class Command {
 
                     }
                     else{
-                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
+                        createInvalidCommand(ErrorType.UNKNOWN_COMMAND);
                     }
                     break;
                 case PLUS:
@@ -229,7 +253,7 @@ public class Command {
                         state = State.RANGEHIGH;
                     }
                     else{
-                        createInvalidCommand(ErrorType.UNKNOWNCOMMAND);
+                        createInvalidCommand(ErrorType.UNKNOWN_COMMAND);
                         return;
                     }
 
@@ -255,7 +279,7 @@ public class Command {
                     if (ch == '/' && !firstSlashRead){
                         firstSlashRead = true;
                     } else if (ch != '/' && !firstSlashRead){
-                        createInvalidCommand(ErrorType.REGEX);
+                        createInvalidCommand(ErrorType.DELIMITER);
                         return;
                     }
                     else if (ch == '\\') {
@@ -337,7 +361,7 @@ public class Command {
             }
         }
         else if (state == State.REGEX){
-            createInvalidCommand(ErrorType.REGEX);
+            createInvalidCommand(ErrorType.DELIMITER);
         }
         else if (state == State.REPLACEMENT && replacement == null){
             replacement = sb.toString();
@@ -353,7 +377,7 @@ public class Command {
             destinationLine = Integer.parseInt(sb.toString());
 
         //check boundaries
-        if (range != null && range.state == RangeState.RANGESET &&
+        if (range != null && range.state == RangeState.RANGE_SET &&
                 (range.from > range.to ||
                         range.from < 0 ||
                         range.to > lastLine))

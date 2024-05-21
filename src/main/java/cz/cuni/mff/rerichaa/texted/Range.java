@@ -1,4 +1,4 @@
-package cz.cuni.mff.rerichaa.ed;
+package cz.cuni.mff.rerichaa.texted;
 
 /**
  * Class representing a range of line indices for TextEd command. State determines if a default range should be
@@ -17,11 +17,11 @@ public class Range {
     public Range(int from, int to){
         this.from = from;
         this.to = to;
-        this.state = RangeState.RANGESET;
+        this.state = RangeState.RANGE_SET;
     }
 
     /**
-     * Creates range in default state. Range should be set as the default.
+     * Creates range in default state. Range should be set as the default for the command.
      */
     public Range(){
         this.state = RangeState.DEFAULT;

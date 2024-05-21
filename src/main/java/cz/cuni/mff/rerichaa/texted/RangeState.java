@@ -1,4 +1,4 @@
-package cz.cuni.mff.rerichaa.ed;
+package cz.cuni.mff.rerichaa.texted;
 
 /**
  * Represents the state of Range. If range state is set to DEFAULT, it should be set to default values. If
@@ -6,5 +6,5 @@ package cz.cuni.mff.rerichaa.ed;
  */
 public enum RangeState {
     DEFAULT,
-    RANGESET
+    RANGE_SET
 }

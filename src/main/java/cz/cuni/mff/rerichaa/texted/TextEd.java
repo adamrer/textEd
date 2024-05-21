@@ -1,11 +1,15 @@
-package cz.cuni.mff.rerichaa.ed.program;
+package cz.cuni.mff.rerichaa.texted;
 
 
-import cz.cuni.mff.rerichaa.ed.*;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import static cz.cuni.mff.rerichaa.texted.TextBlockAligner.process;
 
 /**
  * Main class of text editor similar to linux text editor 'ed'. Loads text file to buffer, modifies the buffer and
@@ -23,24 +27,26 @@ public class TextEd {
     private static boolean changesMade = false; // unsaved changes in the buffer
 
     // Error messages
-    static Hashtable<ErrorType, String> errorMessages = new Hashtable<>(){
+    static final Hashtable<ErrorType, String> errorMessages = new Hashtable<>(){
         {
             put(ErrorType.ADDRESS, "Invalid address");
-            put(ErrorType.UNKNOWNCOMMAND, "Unknown command");
-            put(ErrorType.READINGFILE, "Error reading file");
-            put(ErrorType.READINGINPUT, "Error reading input ");
-            put(ErrorType.WRITINGFILE, "Error writing to file");
-            put(ErrorType.WRITINGOUTPUT, "Error writing to output");
+            put(ErrorType.UNKNOWN_COMMAND, "Unknown command");
+            put(ErrorType.READING_FILE, "Error reading file");
+            put(ErrorType.READING_INPUT, "Error reading input ");
+            put(ErrorType.WRITING_FILE, "Error writing to file");
+            put(ErrorType.WRITING_OUTPUT, "Error writing to output");
             put(ErrorType.UNSAVED, "Warning: Buffer modified");
-            put(ErrorType.DEFAULTFILE, "Default file not set");
+            put(ErrorType.DEFAULT_FILE, "Default file not set");
             put(ErrorType.ARGUMENT, "Invalid argument");
-            put(ErrorType.REGEX, "Missing pattern delimiter");
+            put(ErrorType.DELIMITER, "Missing pattern delimiter");
+            put(ErrorType.REGEX, "Invalid syntax of regex");
             put(ErrorType.SUFFIX, "Invalid command suffix");
             put(ErrorType.NOMATCH, "No matches");
+            put(ErrorType.TEXT_ALIGN, "Error aligning buffer");
         }
     };
     // Known commands for TextEd
-    static Hashtable<Character, CommandStructure> knownCommands = new Hashtable<>(){
+    static final Hashtable<Character, CommandStructure> knownCommands = new Hashtable<>(){
         {//noDestination, noArgument
             //prompt
             put('P', new CommandStructure(true, true));
@@ -88,12 +94,15 @@ public class TextEd {
             put('u', new CommandStructure(true, true));
             // move lines to
             put('m', new CommandStructure(false, true));
+            // align text to blocks
+            put('b', new CommandStructure(true, false));
 
         }
     };
 
     /**
-     * Main method where the main loop of the editor is located.
+     * Main method where the main loop of the editor is located. Receives and executes
+     * commands declared by the user.
      * @param args can be a file that will be set as default
      */
     public static void main(String[] args){
@@ -104,8 +113,6 @@ public class TextEd {
             readFile(defaultFile, 0);
         }
 
-
-//        System.out.println("Working Directory = " + System.getProperty("user.dir"));
         try(BufferedReader reader = new BufferedReader( new InputStreamReader( System.in ) )){
             if (showPrompt) System.out.print("* ");
             String input = reader.readLine();
@@ -119,15 +126,14 @@ public class TextEd {
                 if (checkStructure(command))
                     execute(command, reader);
                 else
-                    printError(ErrorType.UNKNOWNCOMMAND);
-//                System.out.println(command);
+                    printError(ErrorType.UNKNOWN_COMMAND);
                 if (showPrompt) System.out.print("* ");
                 input = reader.readLine();
 
             }
         }
         catch (java.io.IOException e){
-            printError(ErrorType.WRITINGOUTPUT);
+            printError(ErrorType.WRITING_OUTPUT);
         }
 
 
@@ -188,7 +194,7 @@ public class TextEd {
                     return;
                 }
                 else{
-                    printError(ErrorType.DEFAULTFILE);
+                    printError(ErrorType.DEFAULT_FILE);
                     return;
                 }
 
@@ -197,7 +203,7 @@ public class TextEd {
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(buffer.size()-1, buffer.size()-1);
                 if (command.argument == null && defaultFile == null)
-                    printError(ErrorType.DEFAULTFILE);
+                    printError(ErrorType.DEFAULT_FILE);
                 else if (command.argument != null){
                     saveBuffer();
                     readFile(command.argument, command.range.from);
@@ -231,7 +237,7 @@ public class TextEd {
                 printBuffer(command.range);
                 break;
             case ' ': // change current line (number)
-                if (command.range != null && command.range.state == RangeState.RANGESET){
+                if (command.range != null && command.range.state == RangeState.RANGE_SET){
 
                     int lineNumber = command.range.from;
                     if (lineNumber < buffer.size() && lineNumber > 0){
@@ -301,7 +307,7 @@ public class TextEd {
                 else if (command.argument != null && !command.argument.isEmpty())
                     writeBuffer(command.argument, command.range);
                 else
-                    printError(ErrorType.DEFAULTFILE);
+                    printError(ErrorType.DEFAULT_FILE);
                 break;
             case 't': // copy lines
                 if (command.range.state == RangeState.DEFAULT)
@@ -313,7 +319,7 @@ public class TextEd {
 
                 copyLines(command.range, command.destinationLine);
                 break;
-            case 'm': // move lines TODO
+            case 'm': // move lines
                 if (command.range.state == RangeState.DEFAULT)
                     command.range = new Range(currLine, currLine);
                 if (command.destinationLine == null) {
@@ -340,6 +346,22 @@ public class TextEd {
                     command.range = new Range(currLine, currLine);
                 substituteText(command.range, command.regex, command.replacement, command.suffixes);
                 break;
+            case 'b': // align text to blocks
+                if (command.range.state != RangeState.DEFAULT){
+                    printError(ErrorType.ADDRESS);
+                    return;
+                }
+                try{
+                    saveBuffer();
+                    if (command.argument == null || command.argument.isEmpty())
+                        alignBuffer(72);
+                    else
+                        alignBuffer(Integer.parseInt(command.argument));
+                }
+                catch(NumberFormatException e){
+                    printError(ErrorType.ARGUMENT);
+                }
+                break;
             case 'u': // undo changes on buffer, get buffer to the previous state
                 if (command.range.state != RangeState.DEFAULT){
                     printError(ErrorType.ADDRESS);
@@ -353,7 +375,7 @@ public class TextEd {
                 break;
 
             default:
-                printError(ErrorType.UNKNOWNCOMMAND);
+                printError(ErrorType.UNKNOWN_COMMAND);
                 break;
 
 
@@ -376,8 +398,16 @@ public class TextEd {
         boolean global = suffixes.contains("g");
         boolean number = suffixes.contains("n");
         boolean caseInsensitive = suffixes.contains("i") || suffixes.contains("I");
-        //TODO: COUNTth match
+
         Integer matchedLine = null;
+        Pattern pattern;
+        try{
+            pattern = Pattern.compile(regex);
+        }
+        catch (PatternSyntaxException e){
+            printError(ErrorType.REGEX);
+            return;
+        }
 
         for (int i = range.from; i <= range.to; i++){
             String line = buffer.get(i);
@@ -385,7 +415,9 @@ public class TextEd {
                 line = line.toLowerCase();
                 regex = regex.toLowerCase();
             }
-            if (line.matches(regex)){
+            Matcher matcher = pattern.matcher(line);
+
+            if (matcher.find()){
                 matchedLine = i;
 
                 if (global)
@@ -406,6 +438,46 @@ public class TextEd {
                 printBuffer(suffixRange);
         } else
             printError(ErrorType.NOMATCH);
+    }
+
+    /**
+     * Aligns the text in the buffer to specified line width.
+     * If the line is the last line of the paragraph, aligns it to
+     * the left.
+     * @param lineWidth Count of characters on one line
+     */
+    private static void alignBuffer(int lineWidth){
+        StringBuilder stringBuffer = new StringBuilder();
+        for (int i = 1; i < buffer.size(); i++){
+
+            stringBuffer.append(buffer.get(i)).append('\n');
+        }
+        StringWriter result = new StringWriter();
+        try (PushbackReader reader = new PushbackReader(new StringReader(stringBuffer.toString()));
+             BufferedWriter writer = new BufferedWriter(result);){
+
+            TokenReader tokenReader = new TokenReader(reader);
+            TextAligner tokenProcessor = new TextAligner(lineWidth);
+
+            process(tokenReader, tokenProcessor, writer);
+
+        } catch (IOException e) {
+            printError(ErrorType.TEXT_ALIGN);
+            return;
+        }
+
+        String[] resultLines = result.toString().split("\\n");
+        if (resultLines.length < buffer.size()){
+            deleteLines(new Range(resultLines.length, buffer.size()-1));
+        }
+        for (int i = 0; i < resultLines.length; i++){
+            if (i+1 >= buffer.size())
+                buffer.add(resultLines[i]);
+            else
+                buffer.set(i+1, resultLines[i]);
+        }
+        currLine = buffer.size()-1;
+
     }
 
     /**
@@ -539,7 +611,7 @@ public class TextEd {
                 line = inputReader.readLine();
             }
         }catch(java.io.IOException e){
-            printError(ErrorType.READINGINPUT);
+            printError(ErrorType.READING_INPUT);
         }
 
         currLine = index - 1;
@@ -576,7 +648,7 @@ public class TextEd {
             System.out.println(charSum);
         }
         catch (IOException e){
-            printError(ErrorType.READINGFILE);
+            printError(ErrorType.READING_FILE);
         }
     }
 
@@ -610,7 +682,7 @@ public class TextEd {
             System.out.println(charSum);
 
         }catch(java.io.IOException e){
-            printError(ErrorType.WRITINGFILE);
+            printError(ErrorType.WRITING_FILE);
         }
         changesMade = false;
 

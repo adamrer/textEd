@@ -1,4 +1,4 @@
-package cz.cuni.mff.rerichaa.ed;
+package cz.cuni.mff.rerichaa.texted;
 
 /**
  * Represents a command structure. Used for checking if command doesn't have something extra.

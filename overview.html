@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+    <h1>Overview</h1>
+    <p>Hlavní třída projektu je <code>TextEd</code>. V main metodě je smyčka, ve které se čte standardní vstup. To se posílá třídě
+        <code>Command</code>, která je stavový automat, který projde celý řetězec a převede ho na instanci
+        <code>Command</code>. Pak se zkontroluje,
+        jestli je příkaz známý a má správnou strukturu (s pomocí recordu CommandStructure). Pokud tímto projde, tak
+        se provede metodou <code>execute</code>.
+    </p>
+    <p><code>Range</code> je třída pro reprezentaci rozsahu, kde příkaz bude působit. Pokud instance <code>Range</code> má stav <code>RangeState.DEFAULT</code>
+    , tak TextEd musí v metodě <code>execute</code> ještě přiřadit výchozí rozsah příkazu.</p>
+
+    <p><code>ErrorType</code> je <code>enum</code>, podle kterého se v errorMessages v <code>TextEd</code> mapují chybové hlášky</p>
+<p>Poté velkou částí je zarovnávání textu do bloku. To řeší třída <code>TextBlockAligner</code>, která dává dohromady <code>TextAligner</code>
+(ten vydává zarovnané řádky) a <code>TokenReader</code> (ten čte znaky textu v paměti a překládá je do <code>Token</code>ů, které reprezentují
+slovo, nebo konec řádku, nebo konec odstavce, nebo konec čteného vstupu.) a zarovnaný text se zapíše do <code>BufferedWriter</code>u</p>
+</body>
+</html>
